@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>动态古典音乐家时间轴</title>
+    <style>
+        /* ================= 页面基础样式 ================= */
+        body {
+            font-family: 'SimHei', 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            padding: 30px;
+            background-color: #f8f9fa;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        /* ================= 表单控制区样式 ================= */
+        .controls {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .input-group label {
+            font-size: 14px;
+            color: #555;
+            font-weight: bold;
+        }
+
+        .input-group input, .input-group select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 120px;
+        }
+
+        .input-group input.long-input {
+            width: 250px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: background 0.2s;
+        }
+
+        button:hover {
+            background-color: #1557b0;
+        }
+
+        /* ================= 图表区样式 ================= */
+        #chart-wrapper {
+            background: #fff;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            overflow-x: auto;
+        }
+
+        #chart-container {
+            position: relative;
+            min-width: 1800px; /* 保证横向展开 */
+            margin: 0 auto;
+        }
+
+        /* 网格线 */
+        .grid-line { position: absolute; top: 0; bottom: -10px; z-index: 1; }
+        .grid-line.minor { border-left: 1px dotted #e0e0e0; }
+        .grid-line.major { border-left: 1px solid #b0b0b0; }
+        .grid-label {
+            position: absolute; bottom: -30px; 
+            transform: translateX(-50%) rotate(45deg);
+            font-size: 12px; color: #666;
+        }
+
+        /* 世纪线 */
+        .century-line {
+            position: absolute; top: -30px; bottom: -10px;
+            border-left: 2px solid #333; z-index: 2;
+        }
+        .century-label {
+            position: absolute; top: -40px; font-weight: bold;
+            font-size: 18px; transform: translateX(-50%); color: #333;
+        }
+
+        /* 数据条与文字 */
+        .person-row { position: absolute; height: 26px; z-index: 3; transition: top 0.5s ease;}
+        .bar { width: 100%; height: 100%; border: 1px solid #000; box-sizing: border-box; opacity: 0.9; border-radius: 3px;}
+        .bar.composer { background-color: #8EB4E6; }
+        .bar.conductor { background-color: #F3B66D; }
+
+        .label-left {
+            position: absolute; right: 100%; top: 50%; transform: translateY(-50%);
+            padding-right: 12px; white-space: nowrap; font-weight: bold; font-size: 14px;
+        }
+        .label-right {
+            position: absolute; left: 100%; top: 50%; transform: translateY(-50%);
+            padding-left: 12px; white-space: nowrap; font-size: 14px; color: #444;
+        }
+
+        /* 图例 */
+        .legend { margin-top: 60px; display: flex; justify-content: flex-end; gap: 20px; font-size: 16px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .legend-box { width: 20px; height: 20px; border: 1px solid #000; border-radius: 3px;}
+        
+        @media print {
+            .controls { display: none; } /* 打印时隐藏控制台 */
+            body { background: #fff; padding: 0; }
+            #chart-wrapper { box-shadow: none; overflow: visible;}
+            @page { size: A3 landscape; margin: 1cm; }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>西方古典音乐家与指挥家动态时间轴</h1>
+
+    <div class="controls">
+        <div class="input-group">
+            <label>姓名</label>
+            <input type="text" id="inp-name" placeholder="例如: 肖邦">
+        </div>
+        <div class="input-group">
+            <label>国籍</label>
+            <input type="text" id="inp-nat" placeholder="例如: 波兰">
+        </div>
+        <div class="input-group">
+            <label>出生年份</label>
+            <input type="number" id="inp-birth" placeholder="例如: 1810">
+        </div>
+        <div class="input-group">
+            <label>去世年份</label>
+            <input type="number" id="inp-death" placeholder="例如: 1849">
+        </div>
+        <div class="input-group">
+            <label>身份</label>
+            <select id="inp-role">
+                <option value="Composer">作曲家</option>
+                <option value="Conductor">指挥家</option>
+            </select>
+        </div>
+        <div class="input-group">
+            <label>主要贡献/课堂赏析</label>
+            <input type="text" id="inp-desc" class="long-input" placeholder="例如: “钢琴诗人”">
+        </div>
+        <button onclick="addNewEntry()">添加并重新排序</button>
+    </div>
+
+    <div id="chart-wrapper">
+        <div id="chart-container"></div>
+        <div class="legend" id="legend-container"></div>
+    </div>
+
+    <script>
+        // 1. 初始化核心数据（带优化后的文案）
+        let timelineData = [
+            { name: "海顿", nat: "奥地利", birth: 1732, death: 1809, role: "Composer", desc: "确立交响曲四乐章形式，誉为交响乐/弦乐四重奏之父" },
+            { name: "莫扎特", nat: "奥地利", birth: 1756, death: 1791, role: "Composer", desc: "赏析《费加罗的婚礼》 ｜ 学唱《现在你再不要去做情郎》" },
+            { name: "贝多芬", nat: "德国", birth: 1770, death: 1827, role: "Composer", desc: "世称‘乐圣’ ｜ 赏析《第九交响曲·欢乐颂》" },
+            { name: "罗西尼", nat: "意大利", birth: 1792, death: 1868, role: "Composer", desc: "赏析《塞维利亚理发师》序曲" },
+            { name: "威尔第", nat: "意大利", birth: 1813, death: 1901, role: "Composer", desc: "赏析《茶花女》 ｜ 学唱爱情主题" },
+            { name: "瓦格纳", nat: "德国", birth: 1813, death: 1883, role: "Composer", desc: "赏析《漂泊的荷兰人》 ｜ 学唱《婚礼进行曲》" },
+            { name: "小约翰·施特劳斯", nat: "奥地利", birth: 1825, death: 1899, role: "Composer", desc: "赏析轻歌剧《蝙蝠》序曲" },
+            { name: "比才", nat: "法国", birth: 1838, death: 1875, role: "Composer", desc: "赏析《卡门》 ｜ 学唱幕间曲" },
+            { name: "普契尼", nat: "意大利", birth: 1858, death: 1924, role: "Composer", desc: "赏析《蝴蝶夫人》 与 《图兰朵》" },
+            { name: "托斯卡尼尼", nat: "意大利", birth: 1867, death: 1957, role: "Conductor", desc: "历史轶事：首演《图兰朵》时放下指挥棒" },
+            { name: "卡尔·伯姆", nat: "德国", birth: 1894, death: 1981, role: "Conductor", desc: "课堂关联：1976 年《费加罗的婚礼》" },
+            { name: "卡拉扬", nat: "奥地利", birth: 1908, death: 1989, role: "Conductor", desc: "课堂关联：1974 年《蝴蝶夫人》" },
+            { name: "索尔蒂", nat: "匈牙利", birth: 1912, death: 1997, role: "Conductor", desc: "课堂关联：1994 年《茶花女》" },
+            { name: "洛林·马泽尔", nat: "美国", birth: 1930, death: 2014, role: "Conductor", desc: "课堂关联：2011 年《塞维利亚理发师》" },
+            { name: "詹姆斯·列文", nat: "美国", birth: 1943, death: 2021, role: "Conductor", desc: "课堂关联：1987 年《卡门》及《图兰朵》" }
+        ];
+
+        // 图表渲染配置
+        const START_YEAR = 1720;
+        const END_YEAR = 2040;
+        const TOTAL_YEARS = END_YEAR - START_YEAR;
+        const ROW_HEIGHT = 45; // 每一行的高度
+        
+        const container = document.getElementById('chart-container');
+        const legendContainer = document.getElementById('legend-container');
+
+        // 计算 X 轴百分比
+        function getXPercent(year) {
+            return ((year - START_YEAR) / TOTAL_YEARS) * 100;
+        }
+
+        // 核心渲染函数
+        function renderTimeline() {
+            // 清空容器
+            container.innerHTML = '';
+            
+            // 数据排序：按出生年份从小到大排
+            timelineData.sort((a, b) => a.birth - b.birth);
+
+            // 动态设置容器高度
+            container.style.height = (timelineData.length * ROW_HEIGHT + 60) + 'px';
+
+            // 1. 渲染背景网格
+            for (let year = START_YEAR; year <= END_YEAR; year++) {
+                if (year % 5 === 0 || year % 1 === 0) { // 这里其实每个年份都有线
+                    const line = document.createElement('div');
+                    line.style.left = getXPercent(year) + '%';
+                    
+                    if (year % 5 === 0) {
+                        line.className = 'grid-line major';
+                        const label = document.createElement('div');
+                        label.className = 'grid-label';
+                        label.innerText = year;
+                        line.appendChild(label);
+                    } else {
+                        line.className = 'grid-line minor';
+                    }
+                    container.appendChild(line);
+                }
+            }
+
+            // 2. 渲染世纪线
+            const centuries = [
+                { year: 1800, name: "十八世纪" },
+                { year: 1900, name: "十九世纪" },
+                { year: 2000, name: "二十世纪" }
+            ];
+            centuries.forEach(c => {
+                const cLine = document.createElement('div');
+                cLine.className = 'century-line';
+                cLine.style.left = getXPercent(c.year) + '%';
+
+                const cLabel = document.createElement('div');
+                cLabel.className = 'century-label';
+                cLabel.style.left = getXPercent(c.year - 50) + '%';
+                cLabel.innerText = c.name;
+
+                container.appendChild(cLine);
+                container.appendChild(cLabel);
+            });
+
+            // 3. 渲染数据条
+            timelineData.forEach((item, index) => {
+                const row = document.createElement('div');
+                row.className = 'person-row';
+                
+                // 根据索引决定 Y 轴高度
+                row.style.top = (index * ROW_HEIGHT + 40) + 'px';
+                
+                // 计算 X 轴起止
+                const leftPercent = getXPercent(item.birth);
+                const widthPercent = ((item.death - item.birth) / TOTAL_YEARS) * 100;
+                
+                row.style.left = leftPercent + '%';
+                row.style.width = widthPercent + '%';
+
+                const bar = document.createElement('div');
+                bar.className = `bar ${item.role === 'Composer' ? 'composer' : 'conductor'}`;
+
+                const leftText = document.createElement('div');
+                leftText.className = 'label-left';
+                leftText.innerText = `[${item.nat}] ${item.name} (${item.birth}-${item.death})`;
+
+                const rightText = document.createElement('div');
+                rightText.className = 'label-right';
+                rightText.innerText = item.desc;
+
+                row.appendChild(bar);
+                row.appendChild(leftText);
+                row.appendChild(rightText);
+                container.appendChild(row);
+            });
+
+            // 4. 渲染底部图例
+            legendContainer.innerHTML = `
+                <div class="legend-item"><div class="legend-box composer"></div><span>作曲家</span></div>
+                <div class="legend-item"><div class="legend-box conductor"></div><span>指挥家</span></div>
+            `;
+        }
+
+        // 添加新条目的逻辑
+        function addNewEntry() {
+            const name = document.getElementById('inp-name').value;
+            const nat = document.getElementById('inp-nat').value;
+            const birth = parseInt(document.getElementById('inp-birth').value);
+            const death = parseInt(document.getElementById('inp-death').value);
+            const role = document.getElementById('inp-role').value;
+            const desc = document.getElementById('inp-desc').value;
+
+            // 简单校验
+            if (!name || !nat || isNaN(birth) || isNaN(death) || !desc) {
+                alert("请填写完整所有信息！");
+                return;
+            }
+            if (birth >= death) {
+                alert("出生年份必须早于去世年份！");
+                return;
+            }
+
+            // 加入数组
+            timelineData.push({
+                name: name, nat: nat, birth: birth, death: death, role: role, desc: desc
+            });
+
+            // 清空表单
+            document.getElementById('inp-name').value = '';
+            document.getElementById('inp-nat').value = '';
+            document.getElementById('inp-birth').value = '';
+            document.getElementById('inp-death').value = '';
+            document.getElementById('inp-desc').value = '';
+
+            // 重新渲染（包含排序逻辑）
+            renderTimeline();
+        }
+
+        // 页面加载完毕后首次渲染
+        window.onload = renderTimeline;
+
+    </script>
+</body>
+</html>
